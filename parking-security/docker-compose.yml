@@ -1,0 +1,96 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-parking}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_parking_2025}
+      POSTGRES_DB: ${POSTGRES_DB:-parking_security}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-parking}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://parking:changeme_parking_2025@postgres:5432/parking_security}
+      SECRET_KEY: ${SECRET_KEY:-changeme_super_secret_key_min_32_chars!!}
+      ALGORITHM: ${ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@parking.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      CAMERA_API_KEY: ${CAMERA_API_KEY:-changeme_camera_api_key_2025}
+      CAMERA_EMBEDDING_URL: http://host.docker.internal:8080/extract-embedding
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-}
+      FIREBASE_CREDENTIALS_PATH: ${FIREBASE_CREDENTIALS_PATH:-}
+      FIREBASE_TOPIC: ${FIREBASE_TOPIC:-parking-alerts}
+    volumes:
+      - ./snapshots:/app/snapshots
+      - ./images:/app/student_photos
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  camera:
+    build:
+      context: ./camera
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      CAMERA_SOURCE: ${CAMERA_SOURCE:-0}
+      CAMERA_ID: ${CAMERA_ID:-cam-entrance-01}
+      CAMERA_API_KEY: ${CAMERA_API_KEY:-changeme_camera_api_key_2025}
+      BACKEND_API_URL: ${BACKEND_API_URL:-http://backend:8000}
+      SIMILARITY_THRESHOLD: ${SIMILARITY_THRESHOLD:-0.55}
+      FRAME_SKIP: ${FRAME_SKIP:-2}
+      EMBEDDING_REFRESH_INTERVAL: ${EMBEDDING_REFRESH_INTERVAL:-60}
+    devices:
+      - /dev/video0:/dev/video0
+    volumes:
+      - ./snapshots:/app/snapshots
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  pgdata:

@@ -1,0 +1,29 @@
+[Unit]
+Description=Parking Security Camera Service
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=una
+WorkingDirectory=/home/una/parking-security/camera
+Environment=LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu
+Environment=PATH=/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=CAMERA_SOURCE=0
+Environment=CAMERA_ID=cam-entrance-01
+Environment=CAMERA_API_KEY=jetson_cam_key_2025
+Environment=BACKEND_API_URL=http://localhost:8000
+Environment=SIMILARITY_THRESHOLD=0.50
+Environment=FRAME_SKIP=1
+Environment=EMBEDDING_REFRESH_INTERVAL=60
+Environment=STREAM_PORT=8080
+Environment=DETECTION_COOLDOWN=10
+Environment=MIN_FACE_SIZE=80
+Environment=BLUR_THRESHOLD=30.0
+Environment=CONFIRM_FRAMES=3
+ExecStart=/usr/bin/python3 main.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

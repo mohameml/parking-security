@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+snapshots/frames/
+snapshots/employees/
+*.egg-info/
+.pytest_cache/
+pgdata/
