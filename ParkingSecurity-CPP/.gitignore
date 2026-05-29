@@ -1,0 +1,55 @@
+# Build artifacts
+build/
+build-*/
+cmake-build-*/
+out/
+install/
+
+# Generated models
+models/*.engine
+models/*.plan
+models/*.cache
+
+# Compiled binaries
+*.o
+*.obj
+*.so
+*.so.*
+*.a
+*.lib
+*.dll
+*.dylib
+*.exe
+
+# IDE / Editor
+.vscode/
+.vs/
+.idea/
+.clangd/
+.cache/
+compile_commands.json
+.ccls*
+*.code-workspace
+
+# Qt
+moc_*.cpp
+moc_*.h
+ui_*.h
+qrc_*.cpp
+*.qmlc
+*.jsc
+Makefile*
+*.pro.user*
+
+# Secrets / local config
+config/local.ini
+.env
+.env.local
+
+# Logs
+*.log
+logs/
+
+# macOS / misc
+.DS_Store
+Thumbs.db

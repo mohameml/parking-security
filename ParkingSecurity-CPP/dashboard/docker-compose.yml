@@ -1,0 +1,135 @@
+# Dashboard stack for the C++ parking-security daemon.
+#
+# Runs on ports 8001 (backend) + 3001 (frontend) so it can live alongside the
+# original Python stack (8000 + 3000) without conflict.
+#
+# Self-contained: this stack runs its OWN Postgres (service `postgres`,
+# exposed on host:5432) reusing the existing data volume
+# `parking-security_pgdata`, so it no longer depends on the old Python stack.
+# The native C++ daemon still reaches the same DB via localhost:5432.
+#
+# Bring up:
+#   cd ~/ParkingSecurity-CPP/dashboard && docker compose up -d --build
+# Tear down:
+#   docker compose down            # keeps the DB volume (data safe)
+#   docker compose down --volumes  # also drops parking-cpp's OWN volumes
+
+name: parking-cpp
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: parking-cpp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: parking
+      POSTGRES_PASSWORD: changeme_parking_2025
+      POSTGRES_DB: parking_security
+    volumes:
+      # Reuse the existing data volume from the old stack so all enrolled
+      # people, students, embeddings and events are preserved.
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      # Exposed on host:5432 so the native C++ daemon (localhost:5432) and
+      # external tools can reach the same DB.
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U parking -d parking_security"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+
+  embedding:
+    build:
+      context: ./embedding-service
+      dockerfile: Dockerfile
+    container_name: parking-cpp-embedding
+    restart: unless-stopped
+    volumes:
+      # Persist the buffalo_l model pack (~300 MB) across rebuilds/restarts.
+      # Named volume avoids host-path permission issues on the Jetson.
+      - embedding_models:/root/.insightface
+    # Exposed on host:8091 for debugging with curl; backend talks via the
+    # compose network using http://embedding:8080/extract-embedding.
+    ports:
+      - "8091:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8080/health').status==200 else sys.exit(1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: parking-cpp-backend
+    restart: unless-stopped
+    depends_on:
+      embedding:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://parking:changeme_parking_2025@postgres:5432/parking_security
+      SECRET_KEY: changeme_super_secret_key_min_32_chars!!
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      REFRESH_TOKEN_EXPIRE_DAYS: 7
+      ADMIN_EMAIL: admin@parking.local
+      ADMIN_PASSWORD: admin123
+      CAMERA_API_KEY: jetson_cam_key_2025
+      # CPU-only InsightFace service in this stack. Produces embeddings for
+      # enrollment photos using the same buffalo_l model pack the daemon runs
+      # on GPU, so enrolled vectors match what the daemon matches against.
+      CAMERA_EMBEDDING_URL: "http://embedding:8080/extract-embedding"
+      # Alerts stay dashboard-only; no Telegram/email.
+      TELEGRAM_BOT_TOKEN: ""
+      TELEGRAM_CHAT_ID: ""
+      SMTP_HOST: ""
+      SMTP_PORT: "587"
+      SMTP_USER: ""
+      SMTP_PASSWORD: ""
+      ALERT_EMAIL_TO: ""
+    volumes:
+      # Own snapshot + images dirs so the two stacks don't fight over files.
+      - ./snapshots:/app/snapshots
+      - ./images:/app/student_photos
+    ports:
+      - "8001:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: parking-cpp-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    # Lets nginx reach the native C++ daemon's MJPEG server on the host
+    # (host.docker.internal:8090) to proxy the live camera stream.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "3001:80"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  embedding_models:
+  # Existing volume created by the old `parking-security` stack — reused here
+  # (external) so we keep all enrolled people, students, embeddings & events.
+  pgdata:
+    external: true
+    name: parking-security_pgdata
+

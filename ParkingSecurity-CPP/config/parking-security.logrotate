@@ -1,0 +1,11 @@
+# Install to /etc/logrotate.d/parking-security on the Jetson.
+# Keeps 14 days of daily-rotated logs, gzip-compressed, plus the current one.
+/var/log/parking-security/*.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    notifempty
+    missingok
+    copytruncate
+}

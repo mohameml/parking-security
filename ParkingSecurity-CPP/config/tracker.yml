@@ -1,0 +1,54 @@
+%YAML:1.0
+# DeepStream nvtracker config — NvSORT (Simple Online Realtime Tracking).
+#
+# This is DeepStream's NvSORT sample tuned for our face-detection pipeline:
+#   - useUniqueID=1 so every track gets a 64-bit monotonically-growing id.
+#     That plays well with database persistence later (no collision risk).
+#   - minDetectorConfidence=0.5 matches the SCRFD score threshold in our
+#     custom bbox parser (libnvds_parsebbox_scrfd.so).
+#
+# NvSORT uses IOU + simple Kalman filter — fast, no re-id model needed.
+# Swap to NvDCF or NvDeepSORT later for better re-id if occlusions are a
+# problem in real deployments.
+
+BaseConfig:
+  minDetectorConfidence: 0.0   # our custom parser already thresholds at 0.5
+
+TargetManagement:
+  enableBboxUnClipping: 0
+  maxTargetsPerStream: 150
+
+  # Creation / termination — tuned for face detection.
+  # probationAge=1 so tracks are emitted on the first frame they appear.
+  # minTrackerConfidence=0.0 so faces never fall into shadow mode (we trust
+  # the SCRFD score, not the tracker's internal confidence).
+  minIouDiff4NewTarget: 0.4
+  minTrackerConfidence: 0.0
+  probationAge: 1
+  maxShadowTrackingAge: 30
+  earlyTerminationAge: 1
+
+TrajectoryManagement:
+  useUniqueID: 1    # 64-bit monotonic IDs — we persist these to DB
+
+DataAssociator:
+  dataAssociatorType: 0
+  associationMatcherType: 1
+  checkClassMatch: 1
+
+  minMatchingScore4Overall: 0.2543
+  minMatchingScore4SizeSimilarity: 0.4019
+  minMatchingScore4Iou: 0.2159
+  matchingScoreWeight4SizeSimilarity: 0.1365
+  matchingScoreWeight4Iou: 0.3836
+
+  tentativeDetectorConfidence: 0.2331
+  minMatchingScore4TentativeIou: 0.2867
+  usePrediction4Assoc: 1
+
+StateEstimator:
+  stateEstimatorType: 2
+
+  noiseWeightVar4Loc: 0.0301
+  noiseWeightVar4Vel: 0.0017
+  useAspectRatio: 1

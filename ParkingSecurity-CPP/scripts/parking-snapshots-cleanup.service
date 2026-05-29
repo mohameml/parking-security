@@ -1,0 +1,9 @@
+[Unit]
+Description=Delete parking-security event snapshots older than 30 days
+
+[Service]
+Type=oneshot
+# Snapshots live in the dashboard's backend volume mount — see
+# ParkingSecurity-CPP/dashboard/docker-compose.yml (./snapshots:/app/snapshots).
+ExecStart=/usr/bin/find /home/una/ParkingSecurity-CPP/dashboard/snapshots -type f \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" \) -mtime +30 -delete
+ExecStartPost=/usr/bin/find /home/una/ParkingSecurity-CPP/dashboard/snapshots -type d -empty -delete

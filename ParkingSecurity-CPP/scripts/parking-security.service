@@ -1,0 +1,34 @@
+[Unit]
+Description=Parking Security — C++ face-recognition camera daemon
+Documentation=https://github.com/your-org/parking-security
+After=network-online.target postgresql.service docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=una
+Group=una
+
+WorkingDirectory=/opt/parking-security
+# Secrets (DB password, camera API key) live in this file, mode 600.
+EnvironmentFile=/etc/parking-security/parking-security.env
+# Ensure CUDA / TensorRT / DeepStream libraries are visible.
+Environment="LD_LIBRARY_PATH=/usr/local/cuda/lib64:/opt/nvidia/deepstream/deepstream/lib"
+ExecStart=/opt/parking-security/bin/parking-security /opt/parking-security/config/parking.ini
+
+TimeoutStopSec=15
+Restart=on-failure
+RestartSec=5
+# Also restart when the daemon exits non-zero after a pipeline CUDA error.
+RestartPreventExitStatus=
+StandardOutput=journal
+StandardError=journal
+
+# Modest hardening.
+ProtectSystem=full
+NoNewPrivileges=true
+PrivateTmp=true
+ReadWritePaths=/var/log/parking-security /home/una/ParkingSecurity-CPP
+
+[Install]
+WantedBy=multi-user.target

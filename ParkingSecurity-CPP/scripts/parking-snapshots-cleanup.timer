@@ -1,0 +1,10 @@
+[Unit]
+Description=Run parking-security snapshot cleanup nightly
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=30min
+
+[Install]
+WantedBy=timers.target

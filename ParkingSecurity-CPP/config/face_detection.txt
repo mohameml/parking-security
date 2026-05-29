@@ -1,0 +1,51 @@
+# DeepStream nvinfer config for the SCRFD face detector (InsightFace buffalo_l/det_10g).
+#
+# Key choices:
+#  - SCRFD preprocessing is (pixel - 127.5) / 128 in RGB order.
+#  - We run as a standard Detector (network-type=0) with a CUSTOM bbox parser
+#    (libnvds_parsebbox_scrfd.so) that knows SCRFD's 9-tensor output format.
+#    This is the canonical DeepStream way to wire up a non-standard detector
+#    and avoids the tensor-meta shape quirks that plague SCRFD.
+#  - nvinfer produces NvDsObjectMeta entries that the pad probe reads and
+#    converts into Detection records.
+#  - Landmarks (5-point kps) are dropped in this mode; reintroduce them
+#    later as user-meta from the parser if face alignment needs them.
+[property]
+gpu-id=0
+
+# Preprocessing: (x - 127.5) * (1/128)
+net-scale-factor=0.0078125
+offsets=127.5;127.5;127.5
+model-color-format=0              # 0 = RGB
+
+model-engine-file=../models/det_10g.engine
+labelfile-path=../config/face_labels.txt
+
+batch-size=1
+network-mode=2                    # FP16
+process-mode=1                    # primary, full frame
+num-detected-classes=1
+interval=0
+gie-unique-id=1
+
+# Input layout: explicit batch mode, static 3x640x640
+infer-dims=3;640;640
+force-implicit-batch-dim=0
+
+# Preserve aspect ratio + symmetric pad so 1920x1080 maps cleanly into 640x640.
+maintain-aspect-ratio=1
+symmetric-padding=1
+
+# Detector mode + custom SCRFD parser.
+network-type=0                    # 0 = Detector
+cluster-mode=4                    # 4 = No clustering (our parser does NMS)
+parse-bbox-func-name=NvDsInferParseCustomSCRFD
+custom-lib-path=../lib/libnvds_parsebbox_scrfd.so
+
+[class-attrs-all]
+# nvinfer applies pre-cluster-threshold to the raw score tensor BEFORE the
+# custom parser runs (zeros out anchors below it). We want every anchor
+# visible to our parser, so set it near zero. Our parser thresholds at 0.5.
+pre-cluster-threshold=0.001
+nms-iou-threshold=0.4
+topk=50
